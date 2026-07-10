@@ -1,0 +1,2277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ISP Monitor</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 12px;
+            gap: 10px;
+            overflow-y: auto;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Top bar                                                             */
+        /* ------------------------------------------------------------------ */
+
+        .topbar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .site-title {
+            font-size: 1rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .controls {
+            display: flex;
+            gap: 5px;
+            margin-left: auto;
+        }
+
+        .controls button {
+            padding: 5px 13px;
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.07);
+            color: #718096;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.18s;
+        }
+
+        .controls button:hover  { background: rgba(255, 255, 255, 0.14); color: #fff; }
+        .controls button.active { background: linear-gradient(90deg, #00d4ff, #7b2cbf); color: #fff; border-color: transparent; }
+        .controls button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+        .topbar-select {
+            padding: 5px 30px 5px 10px;
+            background: rgba(255, 255, 255, 0.07)
+                url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%23718096' d='M6 8L1 3h10z'/%3E%3C/svg%3E")
+                no-repeat right 9px center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            color: #e2e8f0;
+            font-size: 13px;
+            cursor: pointer;
+            appearance: none;
+            transition: border-color 0.18s;
+            flex-shrink: 0;
+            max-width: 180px;
+        }
+
+        .topbar-select:focus { outline: none; border-color: rgba(0, 212, 255, 0.4); }
+        .topbar-select option { background-color: #1e2a4a; color: #e2e8f0; }
+
+        .icon-btn {
+            background: rgba(255, 255, 255, 0.07);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 7px;
+            color: #718096;
+            padding: 5px 9px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            line-height: 1.3;
+            transition: all 0.18s;
+            flex-shrink: 0;
+        }
+
+        .icon-btn:hover { background: rgba(255, 255, 255, 0.15); color: #e2e8f0; }
+
+        /* ------------------------------------------------------------------ */
+        /* Stat strip                                                          */
+        /* ------------------------------------------------------------------ */
+
+        .stats-strip {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            padding: 9px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+        }
+
+        .stat-card .label {
+            font-size: 0.67rem;
+            color: #718096;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+        }
+
+        .stat-card .value {
+            font-size: 1.55rem;
+            font-weight: 700;
+            line-height: 1.15;
+        }
+
+        .stat-card .unit {
+            font-size: 0.7rem;
+            color: #718096;
+            min-height: 1em;
+        }
+
+        .stat-card.download .value { color: #00d4ff; }
+        .stat-card.upload   .value { color: #7b2cbf; }
+        .stat-card.ping     .value { color: #48bb78; }
+        .stat-card.tests    .value { color: #ed8936; }
+
+        /* ------------------------------------------------------------------ */
+        /* Charts                                                              */
+        /* ------------------------------------------------------------------ */
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .chart-container {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            border-radius: 12px;
+            padding: 12px 15px 10px;
+            display: flex;
+            flex-direction: column;
+            height: 300px;
+            flex-shrink: 0;
+        }
+
+        .chart-container h2 {
+            font-size: 0.68rem;
+            color: #4a5568;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 6px;
+            flex-shrink: 0;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .empty-state {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #4a5568;
+            font-size: 0.88rem;
+            pointer-events: none;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Ping status cards                                                   */
+        /* ------------------------------------------------------------------ */
+
+        .ping-section {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .ping-section:empty { display: none; }
+
+        .ping-card {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-left: 3px solid #4a5568;
+            border-radius: 10px;
+            padding: 10px 14px;
+            min-width: 200px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .ping-card.ok   { border-left-color: #48bb78; }
+        .ping-card.warn { border-left-color: #ed8936; }
+        .ping-card.down { border-left-color: #fc8181; }
+
+        .ping-card .pc-name {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #e2e8f0;
+        }
+
+        .ping-card .pc-meta {
+            font-size: 0.68rem;
+            color: #718096;
+        }
+
+        .ping-card .pc-vals {
+            display: flex;
+            gap: 14px;
+            margin-top: 4px;
+        }
+
+        .ping-card .pc-val {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .ping-card .pc-val .v {
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+
+        .ping-card.ok   .pc-val .v { color: #48bb78; }
+        .ping-card.warn .pc-val .v { color: #ed8936; }
+        .ping-card.down .pc-val .v { color: #fc8181; }
+
+        .ping-card .pc-val .u {
+            font-size: 0.62rem;
+            color: #718096;
+        }
+
+        .ping-card .pc-last {
+            font-size: 0.63rem;
+            color: #4a5568;
+            margin-top: 3px;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Status bar                                                          */
+        /* ------------------------------------------------------------------ */
+
+        .statusbar {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 14px;
+            font-size: 0.7rem;
+            color: #4a5568;
+            flex-shrink: 0;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* First-run welcome modal                                            */
+        /* ------------------------------------------------------------------ */
+
+        .welcome-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.65);
+            backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 300;
+        }
+
+        .welcome-modal {
+            background: #1b2240;
+            border: 1px solid rgba(0, 212, 255, 0.2);
+            border-radius: 18px;
+            padding: 36px 36px 32px;
+            width: min(440px, 90vw);
+            box-shadow: 0 28px 64px rgba(0, 0, 0, 0.6);
+            text-align: center;
+        }
+
+        .welcome-modal .welcome-icon {
+            font-size: 2.8rem;
+            margin-bottom: 16px;
+        }
+
+        .welcome-modal h2 {
+            font-size: 1.25rem;
+            color: #e2e8f0;
+            margin-bottom: 12px;
+        }
+
+        .welcome-modal p {
+            font-size: 0.88rem;
+            color: #a0aec0;
+            line-height: 1.6;
+            margin-bottom: 26px;
+        }
+
+        .welcome-modal .welcome-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .btn-welcome-primary {
+            padding: 10px 26px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+            color: #fff;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: opacity 0.18s;
+        }
+
+        .btn-welcome-primary:hover { opacity: 0.88; }
+
+        .btn-welcome-dismiss {
+            padding: 10px 20px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 8px;
+            background: transparent;
+            color: #718096;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.18s;
+        }
+
+        .btn-welcome-dismiss:hover { border-color: rgba(255,255,255,0.25); color: #e2e8f0; }
+
+        /* ------------------------------------------------------------------ */
+        /* Settings modal                                                      */
+        /* ------------------------------------------------------------------ */
+
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(6px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+        }
+
+        .modal-overlay.open { display: flex; }
+
+        .modal {
+            background: #1b2240;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 16px;
+            padding: 26px 28px;
+            width: min(560px, 92vw);
+            max-height: 88vh;
+            overflow-y: auto;
+            box-shadow: 0 24px 56px rgba(0, 0, 0, 0.55);
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 22px;
+        }
+
+        .modal-header h2 { font-size: 1rem; color: #e2e8f0; }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: #718096;
+            font-size: 1rem;
+            cursor: pointer;
+            padding: 3px 7px;
+            border-radius: 5px;
+            transition: all 0.18s;
+            line-height: 1;
+        }
+
+        .modal-close:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+
+        .setting-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 14px;
+        }
+
+        .setting-group > label {
+            font-size: 0.72rem;
+            color: #718096;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+        }
+
+        .setting-group select {
+            padding: 8px 36px 8px 12px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 7px;
+            color: #fff;
+            font-size: 13px;
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23a0aec0' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            width: 100%;
+            transition: border-color 0.18s;
+        }
+
+        .setting-group select:focus { outline: none; border-color: rgba(0, 212, 255, 0.4); }
+        .setting-group select:disabled { opacity: 0.38; cursor: not-allowed; }
+        .setting-group select option { background-color: #1e2a4a; color: #e2e8f0; }
+
+        .export-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .export-row select { flex: 1; }
+
+        .btn-export {
+            padding: 8px 14px;
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            border-radius: 7px;
+            background: rgba(0, 212, 255, 0.08);
+            color: #00d4ff;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            white-space: nowrap;
+            transition: all 0.18s;
+            flex-shrink: 0;
+        }
+
+        .btn-export:hover { background: rgba(0, 212, 255, 0.18); }
+
+        /* Connections section in settings */
+
+        .section-divider {
+            font-size: 0.72rem;
+            color: #718096;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+            margin-bottom: 10px;
+            padding-top: 4px;
+        }
+
+        .targets-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .target-row {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 9px;
+            padding: 10px 12px;
+        }
+
+        .target-fields {
+            display: grid;
+            grid-template-columns: 2fr 1fr 2fr;
+            gap: 6px;
+            margin-bottom: 7px;
+        }
+
+        .target-input {
+            padding: 6px 9px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            color: #e2e8f0;
+            font-size: 12px;
+            width: 100%;
+            transition: border-color 0.18s;
+        }
+
+        .target-input:focus { outline: none; border-color: rgba(0, 212, 255, 0.4); }
+        .target-input::placeholder { color: #4a5568; }
+
+        .target-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .target-check {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+            color: #a0aec0;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .target-check input[type="checkbox"] { cursor: pointer; accent-color: #00d4ff; }
+
+        .target-btns {
+            display: flex;
+            gap: 6px;
+            margin-left: auto;
+        }
+
+        .btn-sm {
+            padding: 5px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.18s;
+        }
+
+        .btn-sm-save {
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            background: rgba(0, 212, 255, 0.08);
+            color: #00d4ff;
+        }
+
+        .btn-sm-save:hover { background: rgba(0, 212, 255, 0.2); }
+
+        .btn-sm-del {
+            border: 1px solid rgba(252, 129, 129, 0.3);
+            background: rgba(252, 129, 129, 0.06);
+            color: #fc8181;
+        }
+
+        .btn-sm-del:hover { background: rgba(252, 129, 129, 0.18); }
+
+        .btn-add-target {
+            width: 100%;
+            padding: 8px;
+            border: 1px dashed rgba(255, 255, 255, 0.15);
+            border-radius: 8px;
+            background: transparent;
+            color: #718096;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.18s;
+            margin-bottom: 14px;
+        }
+
+        .btn-add-target:hover { border-color: rgba(0, 212, 255, 0.4); color: #00d4ff; background: rgba(0, 212, 255, 0.04); }
+
+        .target-add-form {
+            background: rgba(0, 212, 255, 0.04);
+            border: 1px solid rgba(0, 212, 255, 0.15);
+            border-radius: 9px;
+            padding: 10px 12px;
+            margin-bottom: 14px;
+            display: none;
+        }
+
+        .target-add-form.open { display: block; }
+
+        .modal-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 22px;
+            padding-top: 18px;
+            border-top: 1px solid rgba(255, 255, 255, 0.07);
+        }
+
+        .btn-save {
+            padding: 8px 22px;
+            border: none;
+            border-radius: 7px;
+            background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+            color: #fff;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: opacity 0.18s;
+        }
+
+        .btn-save:hover    { opacity: 0.85; }
+        .btn-save:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .settings-status       { font-size: 0.8rem; color: #48bb78; }
+        .settings-status.error { color: #fc8181; }
+
+        /* ------------------------------------------------------------------ */
+        /* Custom timezone picker                                             */
+        /* ------------------------------------------------------------------ */
+
+        .custom-tz-wrap { position: relative; }
+
+        .custom-tz-trigger {
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 7px;
+            color: #e2e8f0;
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            user-select: none;
+            transition: border-color 0.18s;
+            width: 100%;
+        }
+
+        .custom-tz-trigger:hover { border-color: rgba(255, 255, 255, 0.2); }
+        .custom-tz-trigger.open  { border-color: rgba(0, 212, 255, 0.4); }
+        .tz-arrow { color: #a0aec0; font-size: 11px; flex-shrink: 0; }
+
+        .custom-tz-dropdown {
+            position: absolute;
+            top: calc(100% + 3px);
+            left: 0;
+            right: 0;
+            background: #1a2342;
+            border: 1px solid rgba(0, 212, 255, 0.18);
+            border-radius: 8px;
+            z-index: 500;
+            display: none;
+            box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+        }
+
+        .custom-tz-dropdown.open { display: block; }
+
+        .tz-search-input {
+            display: block;
+            width: 100%;
+            padding: 8px 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border: none;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            color: #e2e8f0;
+            font-size: 12px;
+            outline: none;
+            box-sizing: border-box;
+        }
+
+        .tz-search-input::placeholder { color: #4a5568; }
+
+        .tz-list { max-height: 200px; overflow-y: auto; }
+
+        .tz-group-lbl {
+            padding: 5px 10px 2px;
+            font-size: 0.6rem;
+            color: #4a5568;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+
+        .tz-opt {
+            padding: 6px 10px;
+            font-size: 12px;
+            color: #a0aec0;
+            cursor: pointer;
+            transition: background 0.1s, color 0.1s;
+        }
+
+        .tz-opt:hover    { background: rgba(0, 212, 255, 0.08); color: #e2e8f0; }
+        .tz-opt.selected { color: #00d4ff; }
+
+        /* ------------------------------------------------------------------ */
+        /* Responsive                                                          */
+        /* ------------------------------------------------------------------ */
+
+        /* ------------------------------------------------------------------ */
+        /* Speedtest server picker inside target rows                         */
+        /* ------------------------------------------------------------------ */
+
+        .target-servers-hdr {
+            font-size: 0.66rem;
+            color: #718096;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 8px;
+            margin-bottom: 3px;
+        }
+
+        .target-servers-hdr em {
+            text-transform: none;
+            font-style: italic;
+            color: #4a5568;
+            font-size: 0.63rem;
+        }
+
+        .target-servers-list {
+            max-height: 130px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            border-radius: 6px;
+            padding: 6px 8px;
+            background: rgba(0, 0, 0, 0.15);
+        }
+
+        .target-srv-hint {
+            font-size: 0.63rem;
+            color: #4a5568;
+            padding: 2px 0;
+        }
+
+        @media (max-width: 700px) {
+            .charts-grid { grid-template-columns: 1fr; }
+            .chart-container[style] { grid-column: unset; }
+            .target-fields { grid-template-columns: 1fr 1fr; }
+        }
+
+        @media (max-width: 600px) {
+            .stats-strip { grid-template-columns: repeat(2, 1fr); }
+            .site-title  { display: none; }
+            .topbar-select { max-width: 120px; }
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Tab switcher                                                        */
+        /* ------------------------------------------------------------------ */
+
+        .tab-switcher {
+            display: flex;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+
+        .tab-btn {
+            padding: 5px 14px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.07);
+            color: #718096;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.18s;
+        }
+
+        .tab-btn:hover  { background: rgba(255, 255, 255, 0.14); color: #fff; }
+        .tab-btn.active { background: linear-gradient(90deg, #00d4ff, #7b2cbf); color: #fff; border-color: transparent; }
+
+        /* ------------------------------------------------------------------ */
+        /* Tab panels                                                          */
+        /* ------------------------------------------------------------------ */
+
+        .tab-panel        { display: none; }
+        .tab-panel.active { display: contents; }
+
+        /* ------------------------------------------------------------------ */
+        /* iperf3 tab                                                          */
+        /* ------------------------------------------------------------------ */
+
+        .iperf3-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .iperf3-status-card {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        .iperf3-status-card h3 {
+            font-size: 0.85rem;
+            color: #e2e8f0;
+            margin-right: auto;
+        }
+
+        .badge {
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        .badge.running { background: rgba(72, 187, 120, 0.15); color: #48bb78; border: 1px solid rgba(72, 187, 120, 0.3); }
+        .badge.stopped { background: rgba(255, 255, 255, 0.06); color: #718096; border: 1px solid rgba(255, 255, 255, 0.1); }
+
+        .iperf3-port-wrap {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: #a0aec0;
+        }
+
+        .iperf3-port-wrap input[type="number"] {
+            width: 72px;
+            padding: 5px 8px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            color: #e2e8f0;
+            font-size: 13px;
+            text-align: center;
+        }
+
+        .iperf3-port-wrap input[type="number"]:focus { outline: none; border-color: rgba(0, 212, 255, 0.4); }
+
+        .btn-iperf3-toggle {
+            padding: 6px 18px;
+            border-radius: 7px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.18s;
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            background: rgba(0, 212, 255, 0.08);
+            color: #00d4ff;
+        }
+
+        .btn-iperf3-toggle:hover { background: rgba(0, 212, 255, 0.18); }
+        .btn-iperf3-toggle.stop  { border-color: rgba(252, 129, 129, 0.3); background: rgba(252, 129, 129, 0.06); color: #fc8181; }
+        .btn-iperf3-toggle.stop:hover { background: rgba(252, 129, 129, 0.18); }
+
+        .iperf3-commands {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 16px 20px;
+        }
+
+        .iperf3-commands h3 {
+            font-size: 0.72rem;
+            color: #718096;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+            margin-bottom: 10px;
+        }
+
+        .cmd-block {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 7px;
+            padding: 8px 12px;
+            margin-bottom: 8px;
+        }
+
+        .cmd-block:last-child { margin-bottom: 0; }
+
+        .cmd-block code {
+            flex: 1;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 12.5px;
+            color: #e2e8f0;
+        }
+
+        .cmd-copy-btn {
+            padding: 3px 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.06);
+            color: #718096;
+            font-size: 11px;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: all 0.18s;
+        }
+
+        .cmd-copy-btn:hover { background: rgba(255, 255, 255, 0.14); color: #e2e8f0; }
+
+        .iperf3-results-section {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 16px 20px;
+        }
+
+        .iperf3-results-hdr {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .iperf3-results-hdr h3 {
+            font-size: 0.72rem;
+            color: #718096;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+            flex: 1;
+        }
+
+        .btn-clear {
+            padding: 4px 12px;
+            border: 1px solid rgba(252, 129, 129, 0.3);
+            border-radius: 5px;
+            background: rgba(252, 129, 129, 0.06);
+            color: #fc8181;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.18s;
+        }
+
+        .btn-clear:hover { background: rgba(252, 129, 129, 0.18); }
+
+        #iperf3-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12.5px;
+        }
+
+        #iperf3-table th {
+            text-align: left;
+            padding: 6px 10px;
+            color: #4a5568;
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        #iperf3-table td {
+            padding: 7px 10px;
+            color: #a0aec0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        #iperf3-table tr:last-child td { border-bottom: none; }
+        #iperf3-table tr:hover td { background: rgba(255, 255, 255, 0.02); }
+
+        .iperf3-empty {
+            padding: 24px;
+            text-align: center;
+            color: #4a5568;
+            font-size: 0.88rem;
+        }
+
+        .iperf3-ref {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 16px 20px;
+        }
+
+        .iperf3-ref h3 {
+            font-size: 0.72rem;
+            color: #718096;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+            margin-bottom: 10px;
+        }
+
+        .iperf3-ref-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+
+        @media (max-width: 900px) {
+            .iperf3-ref-grid { grid-template-columns: 1fr; }
+        }
+
+        .iperf3-ref-grid .cmd-block { margin-bottom: 0; }
+
+        .cmd-label {
+            font-size: 11px;
+            color: #4a5568;
+            margin-bottom: 0;
+            padding: 0 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .iperf3-flags {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 16px 20px;
+        }
+
+        .iperf3-flags h3 {
+            font-size: 0.72rem;
+            color: #718096;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+            margin-bottom: 10px;
+        }
+
+        .iperf3-flags table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12.5px;
+        }
+
+        .iperf3-flags th {
+            text-align: left;
+            padding: 5px 10px;
+            color: #4a5568;
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .iperf3-flags td {
+            padding: 5px 10px;
+            color: #a0aec0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        .iperf3-flags td:first-child {
+            font-family: 'Courier New', Courier, monospace;
+            color: #e2e8f0;
+            white-space: nowrap;
+        }
+
+        .iperf3-flags tr:last-child td { border-bottom: none; }
+
+        .iperf3-tip {
+            background: rgba(0, 212, 255, 0.05);
+            border: 1px solid rgba(0, 212, 255, 0.15);
+            border-radius: 10px;
+            padding: 12px 16px;
+            font-size: 12.5px;
+            color: #a0aec0;
+            line-height: 1.6;
+        }
+
+        .iperf3-tip strong { color: #00d4ff; }
+
+        .iperf3-tip code {
+            background: rgba(0, 0, 0, 0.25);
+            padding: 1px 5px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #e2e8f0;
+        }
+
+        .iperf3-tip a { color: #00d4ff; text-decoration: none; }
+        .iperf3-tip a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+    <!-- Top bar -->
+    <header class="topbar">
+        <h1 class="site-title">ISP Monitor</h1>
+        <div class="tab-switcher">
+            <button class="tab-btn active" id="tab-btn-dashboard" onclick="switchTab('dashboard')">Dashboard</button>
+            <button class="tab-btn" id="tab-btn-iperf3" onclick="switchTab('iperf3')">iperf3</button>
+        </div>
+        <div class="controls">
+            <button data-range="1h"  onclick="setTimeRange('1h')">1h</button>
+            <button data-range="6h"  onclick="setTimeRange('6h')">6h</button>
+            <button data-range="24h" onclick="setTimeRange('24h')" class="active">24h</button>
+            <button data-range="7d"  onclick="setTimeRange('7d')">7d</button>
+            <button data-range="30d" onclick="setTimeRange('30d')">30d</button>
+        </div>
+        <select id="connection-select" class="topbar-select" onchange="setConnection(this.value)" title="Filter by connection">
+            <option value="">All connections</option>
+        </select>
+        <button id="refresh-btn" class="icon-btn" onclick="refreshData()" title="Refresh">↺</button>
+        <button class="icon-btn" onclick="openSettings()" title="Settings">⚙</button>
+    </header>
+
+    <!-- Dashboard tab panel -->
+    <div id="dashboard-tab" class="tab-panel active">
+
+    <!-- Stat strip -->
+    <div class="stats-strip">
+        <div class="stat-card download">
+            <div class="label">Avg Download</div>
+            <div class="value" id="avg-download">--</div>
+            <div class="unit">Mbps</div>
+        </div>
+        <div class="stat-card upload">
+            <div class="label">Avg Upload</div>
+            <div class="value" id="avg-upload">--</div>
+            <div class="unit">Mbps</div>
+        </div>
+        <div class="stat-card ping">
+            <div class="label">Avg Ping</div>
+            <div class="value" id="avg-ping">--</div>
+            <div class="unit">ms</div>
+        </div>
+        <div class="stat-card tests">
+            <div class="label">Total Tests</div>
+            <div class="value" id="total-tests">--</div>
+            <div class="unit" id="failed-tests"></div>
+        </div>
+    </div>
+
+    <!-- Charts (stacked) -->
+    <div class="charts-grid">
+        <div class="chart-container">
+            <h2>Download Speed (Mbps)</h2>
+            <div class="chart-wrapper">
+                <canvas id="downloadChart"></canvas>
+                <div class="empty-state" id="download-empty" style="display:none">No data for this time range yet.</div>
+            </div>
+        </div>
+        <div class="chart-container">
+            <h2>Upload Speed (Mbps)</h2>
+            <div class="chart-wrapper">
+                <canvas id="uploadChart"></canvas>
+                <div class="empty-state" id="upload-empty" style="display:none">No data for this time range yet.</div>
+            </div>
+        </div>
+        <div class="chart-container" style="grid-column: 1 / -1;">
+            <h2>Ping Latency (ms)</h2>
+            <div class="chart-wrapper">
+                <canvas id="pingChart"></canvas>
+                <div class="empty-state" id="ping-empty" style="display:none">No data for this time range yet.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Per-connection ping status cards -->
+    <div class="ping-section" id="ping-section"></div>
+
+    <!-- Status bar -->
+    <div class="statusbar">
+        <span id="footer-interval">Powered by Ookla Speedtest</span>
+        <span id="footer-divider" style="display:none">·</span>
+        <span id="footer-updated"></span>
+    </div>
+
+    </div><!-- end #dashboard-tab -->
+
+    <!-- iperf3 tab panel -->
+    <div id="iperf3-tab" class="tab-panel">
+        <div class="iperf3-panel">
+
+            <!-- Status card -->
+            <div class="iperf3-status-card">
+                <h3>iperf3 Server</h3>
+                <span id="iperf3-badge" class="badge stopped">Stopped</span>
+                <div class="iperf3-port-wrap">
+                    Port <input type="number" id="iperf3-port" value="5201" min="1024" max="65535">
+                </div>
+                <button class="btn-iperf3-toggle" id="iperf3-toggle-btn" onclick="toggleIperf3()">Start server</button>
+            </div>
+
+            <!-- Command reference -->
+            <div class="iperf3-ref">
+                <h3>Client commands</h3>
+                <div class="iperf3-ref-grid">
+                    <div>
+                        <div class="cmd-label">TCP — basic upload</div>
+                        <div class="cmd-block">
+                            <code class="iperf3-dyn-cmd" data-tpl="iperf3 -c <server-ip> -p {port}">iperf3 -c &lt;server-ip&gt; -p 5201</code>
+                            <button class="cmd-copy-btn" onclick="copyIperf3Ref(this)">Copy</button>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="cmd-label">TCP — download (reverse)</div>
+                        <div class="cmd-block">
+                            <code class="iperf3-dyn-cmd" data-tpl="iperf3 -c <server-ip> -p {port} -R">iperf3 -c &lt;server-ip&gt; -p 5201 -R</code>
+                            <button class="cmd-copy-btn" onclick="copyIperf3Ref(this)">Copy</button>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="cmd-label">TCP — 4 parallel streams</div>
+                        <div class="cmd-block">
+                            <code class="iperf3-dyn-cmd" data-tpl="iperf3 -c <server-ip> -p {port} -P 4">iperf3 -c &lt;server-ip&gt; -p 5201 -P 4</code>
+                            <button class="cmd-copy-btn" onclick="copyIperf3Ref(this)">Copy</button>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="cmd-label">TCP — bidirectional</div>
+                        <div class="cmd-block">
+                            <code class="iperf3-dyn-cmd" data-tpl="iperf3 -c <server-ip> -p {port} --bidir">iperf3 -c &lt;server-ip&gt; -p 5201 --bidir</code>
+                            <button class="cmd-copy-btn" onclick="copyIperf3Ref(this)">Copy</button>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="cmd-label">TCP — 30-second test</div>
+                        <div class="cmd-block">
+                            <code class="iperf3-dyn-cmd" data-tpl="iperf3 -c <server-ip> -p {port} -t 30">iperf3 -c &lt;server-ip&gt; -p 5201 -t 30</code>
+                            <button class="cmd-copy-btn" onclick="copyIperf3Ref(this)">Copy</button>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="cmd-label">TCP — 10 streams, 30 s, reverse</div>
+                        <div class="cmd-block">
+                            <code class="iperf3-dyn-cmd" data-tpl="iperf3 -c <server-ip> -p {port} -P 10 -t 30 -R">iperf3 -c &lt;server-ip&gt; -p 5201 -P 10 -t 30 -R</code>
+                            <button class="cmd-copy-btn" onclick="copyIperf3Ref(this)">Copy</button>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="cmd-label">UDP — unlimited bandwidth</div>
+                        <div class="cmd-block">
+                            <code class="iperf3-dyn-cmd" data-tpl="iperf3 -c <server-ip> -p {port} -u -b 0">iperf3 -c &lt;server-ip&gt; -p 5201 -u -b 0</code>
+                            <button class="cmd-copy-btn" onclick="copyIperf3Ref(this)">Copy</button>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="cmd-label">UDP — 100 Mbps target</div>
+                        <div class="cmd-block">
+                            <code class="iperf3-dyn-cmd" data-tpl="iperf3 -c <server-ip> -p {port} -u -b 100M">iperf3 -c &lt;server-ip&gt; -p 5201 -u -b 100M</code>
+                            <button class="cmd-copy-btn" onclick="copyIperf3Ref(this)">Copy</button>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="cmd-label">UDP — download (reverse)</div>
+                        <div class="cmd-block">
+                            <code class="iperf3-dyn-cmd" data-tpl="iperf3 -c <server-ip> -p {port} -u -b 0 -R">iperf3 -c &lt;server-ip&gt; -p 5201 -u -b 0 -R</code>
+                            <button class="cmd-copy-btn" onclick="copyIperf3Ref(this)">Copy</button>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="cmd-label">UDP — 1 Gbps, 30 s</div>
+                        <div class="cmd-block">
+                            <code class="iperf3-dyn-cmd" data-tpl="iperf3 -c <server-ip> -p {port} -u -b 1G -t 30">iperf3 -c &lt;server-ip&gt; -p 5201 -u -b 1G -t 30</code>
+                            <button class="cmd-copy-btn" onclick="copyIperf3Ref(this)">Copy</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Flag reference -->
+            <div class="iperf3-flags">
+                <h3>Flag reference</h3>
+                <table>
+                    <thead>
+                        <tr><th>Flag</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>-c &lt;ip&gt;</td><td>Connect to server at this address</td></tr>
+                        <tr><td>-p &lt;port&gt;</td><td>Server port (default 5201)</td></tr>
+                        <tr><td>-t &lt;sec&gt;</td><td>Test duration in seconds (default 10)</td></tr>
+                        <tr><td>-P &lt;n&gt;</td><td>Number of parallel streams (default 1)</td></tr>
+                        <tr><td>-R</td><td>Reverse mode — server sends, client receives (measure download)</td></tr>
+                        <tr><td>--bidir</td><td>Bidirectional — test upload and download simultaneously</td></tr>
+                        <tr><td>-u</td><td>Use UDP instead of TCP</td></tr>
+                        <tr><td>-b &lt;rate&gt;</td><td>Target bandwidth: <code>0</code> = unlimited, <code>100M</code> = 100 Mbps, <code>1G</code> = 1 Gbps</td></tr>
+                        <tr><td>-i &lt;sec&gt;</td><td>Reporting interval in seconds (default 1)</td></tr>
+                        <tr><td>-J</td><td>JSON output (useful for scripting)</td></tr>
+                        <tr><td>-w &lt;size&gt;</td><td>TCP window size / socket buffer (e.g. <code>512K</code>, <code>4M</code>)</td></tr>
+                        <tr><td>-l &lt;size&gt;</td><td>Read/write buffer length (default 128K TCP, 8K UDP)</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Install tip -->
+            <div class="iperf3-tip">
+                <strong>Install iperf3 on the client:</strong><br>
+                Debian / Ubuntu: <code>sudo apt install iperf3</code><br>
+                macOS: <code>brew install iperf3</code><br>
+                Windows: download from <a href="https://iperf.fr/iperf-download.php" target="_blank" rel="noopener">iperf.fr</a>
+            </div>
+
+            <!-- Results table -->
+            <div class="iperf3-results-section">
+                <div class="iperf3-results-hdr">
+                    <h3>Recent sessions</h3>
+                    <button class="btn-clear" onclick="clearIperf3Results()">Clear</button>
+                </div>
+                <table id="iperf3-table">
+                    <thead>
+                        <tr>
+                            <th>Time (UTC)</th>
+                            <th>Client IP</th>
+                            <th>Proto</th>
+                            <th>Duration</th>
+                            <th>Sent Mbps</th>
+                            <th>Recv Mbps</th>
+                            <th>Retransmits</th>
+                            <th>Jitter ms</th>
+                        </tr>
+                    </thead>
+                    <tbody id="iperf3-tbody">
+                        <tr><td colspan="8" class="iperf3-empty">No sessions yet. Start the server and run iperf3 from a client.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+    </div><!-- end #iperf3-tab -->
+
+    <!-- First-run welcome modal (hidden by default, shown via JS when setup_done != '1') -->
+    <div class="welcome-overlay" id="welcome-overlay" style="display:none">
+        <div class="welcome-modal">
+            <div class="welcome-icon">📡</div>
+            <h2>Welcome to ISP Monitor</h2>
+            <p>
+                Before measurements can start, you need to configure at least one
+                <strong style="color:#e2e8f0">Connection</strong> in Settings —
+                give it a name, set the network interface, and pick a host to ping.
+                You can also adjust the check interval and speedtest timeout there.
+            </p>
+            <div class="welcome-actions">
+                <button class="btn-welcome-primary" onclick="dismissWelcome(true)">Open Settings →</button>
+                <button class="btn-welcome-dismiss" onclick="dismissWelcome(false)">Dismiss</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings modal -->
+    <div class="modal-overlay" id="settings-overlay" onclick="handleOverlayClick(event)">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Settings</h2>
+                <button class="modal-close" onclick="closeSettings()" title="Close">✕</button>
+            </div>
+
+            <div class="setting-group">
+                <label>Timezone</label>
+                <div class="custom-tz-wrap" id="tz-picker">
+                    <div class="custom-tz-trigger" id="tz-trigger" onclick="toggleTzDropdown()">
+                        <span id="tz-display">Amsterdam (CET/CEST)</span>
+                        <span class="tz-arrow">▾</span>
+                    </div>
+                    <div class="custom-tz-dropdown" id="tz-dropdown">
+                        <input id="tz-search" class="tz-search-input" type="text"
+                            placeholder="Search timezone…" oninput="buildTzList(this.value)" autocomplete="off">
+                        <div class="tz-list" id="tz-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="setting-group">
+                <label>Check Interval</label>
+                <select id="interval-select">
+                    <option value="60">Every 1 minute</option>
+                    <option value="300">Every 5 minutes</option>
+                    <option value="600">Every 10 minutes</option>
+                    <option value="900">Every 15 minutes</option>
+                    <option value="1800">Every 30 minutes</option>
+                    <option value="3600">Every 1 hour</option>
+                </select>
+            </div>
+
+            <div class="setting-group">
+                <label>Speedtest Servers <em style="font-weight:400;font-size:0.75rem;color:#718096">(leave all unchecked → auto-nearest)</em></label>
+                <div class="target-servers-list" id="global-srv-list" style="max-height:160px"></div>
+            </div>
+
+            <div class="setting-group">
+                <label>Data Retention</label>
+                <select id="retention-select">
+                    <option value="0">Keep forever</option>
+                    <option value="7">7 days</option>
+                    <option value="30">30 days</option>
+                    <option value="90">90 days</option>
+                    <option value="180">180 days</option>
+                    <option value="365">1 year</option>
+                </select>
+            </div>
+
+            <div class="setting-group">
+                <label>Max Server Attempts</label>
+                <select id="max-attempts-select">
+                    <option value="1">1 server</option>
+                    <option value="3">3 servers</option>
+                    <option value="5">5 servers</option>
+                    <option value="10">10 servers</option>
+                </select>
+            </div>
+
+            <div class="setting-group">
+                <label>Speedtest Timeout</label>
+                <select id="timeout-select">
+                    <option value="30">30 seconds</option>
+                    <option value="60">60 seconds</option>
+                    <option value="90">90 seconds</option>
+                    <option value="120">120 seconds</option>
+                    <option value="180">180 seconds</option>
+                    <option value="300">300 seconds</option>
+                </select>
+            </div>
+
+            <div class="setting-group">
+                <label>Export Measurements</label>
+                <div class="export-row">
+                    <select id="export-range-select">
+                        <option value="1h">Last 1 hour</option>
+                        <option value="6h">Last 6 hours</option>
+                        <option value="24h" selected>Last 24 hours</option>
+                        <option value="7d">Last 7 days</option>
+                        <option value="30d">Last 30 days</option>
+                        <option value="all">All time</option>
+                    </select>
+                    <button class="btn-export" onclick="exportCsv()">↓ CSV</button>
+                </div>
+            </div>
+
+            <!-- Connections section -->
+            <div class="section-divider">Connections</div>
+
+            <div class="targets-list" id="targets-list"></div>
+
+            <button class="btn-add-target" onclick="toggleAddForm()">+ Add Connection</button>
+
+            <div class="target-add-form" id="target-add-form">
+                <div class="target-fields">
+                    <input class="target-input" id="new-alias"     placeholder="Alias (e.g. Home Fiber)">
+                    <input class="target-input" id="new-interface" placeholder="Interface (eth0)">
+                    <input class="target-input" id="new-ping-host" placeholder="Ping host (8.8.8.8)">
+                </div>
+                <div class="target-controls">
+                    <label class="target-check">
+                        <input type="checkbox" id="new-run-speedtest" checked
+                            onchange="document.getElementById('new-srv-section').style.display=this.checked?'':'none'">
+                        Speedtest
+                    </label>
+                    <label class="target-check">
+                        <input type="checkbox" id="new-enabled" checked> Enabled
+                    </label>
+                    <div class="target-btns">
+                        <button class="btn-sm btn-sm-save" onclick="addTarget()">Add</button>
+                        <button class="btn-sm btn-sm-del"  onclick="toggleAddForm()">Cancel</button>
+                    </div>
+                </div>
+                <div id="new-srv-section">
+                    <div class="target-servers-hdr">Speedtest Servers <em>(leave all unchecked to auto-select nearest)</em></div>
+                    <div class="target-servers-list" id="new-srv-list"></div>
+                </div>
+                <div class="settings-status" id="add-target-status" style="margin-top:6px"></div>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn-save" onclick="saveSettings()">Save</button>
+                <span class="settings-status" id="settings-status"></span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentRange        = '24h';
+        let currentTargetId     = null;   // null = all connections
+        let currentTimezone     = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        let downloadChart       = null;
+        let uploadChart         = null;
+        let pingChart           = null;
+        let _lastKnownTestTime  = null;   // tracks last completed speedtest for auto-refresh
+        let _refreshing         = false;  // prevents concurrent refreshes
+        let _serversList        = [];     // nearby Ookla servers for per-target picker
+
+        // Shared Chart.js defaults — animation off so in-place updates feel instant
+        const chartDefaults = {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false,
+            interaction: { intersect: false, mode: 'index' },
+            plugins: {
+                legend: { labels: { color: '#e2e8f0', usePointStyle: true } },
+                tooltip: {
+                    backgroundColor: 'rgba(22, 33, 62, 0.95)',
+                    titleColor: '#fff',
+                    bodyColor: '#e2e8f0',
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    borderWidth: 1
+                }
+            },
+            scales: {
+                x: {
+                    type: 'time',
+                    time: { displayFormats: { hour: 'HH:mm', day: 'MMM d' } },
+                    grid:  { color: 'rgba(255, 255, 255, 0.04)' },
+                    ticks: { color: '#4a5568', maxTicksLimit: 8 }
+                },
+                y: {
+                    beginAtZero: true,
+                    grid:  { color: 'rgba(255, 255, 255, 0.04)' },
+                    ticks: { color: '#4a5568' }
+                }
+            }
+        };
+
+        // Injects unit string into tooltip labels per chart, with timezone-aware title
+        function makeChartOptions(unit) {
+            return {
+                ...chartDefaults,
+                plugins: {
+                    ...chartDefaults.plugins,
+                    tooltip: {
+                        ...chartDefaults.plugins.tooltip,
+                        callbacks: {
+                            title: (ctx) => {
+                                try {
+                                    return new Date(ctx[0].parsed.x).toLocaleString('en-GB', {
+                                        timeZone: currentTimezone,
+                                        day: '2-digit', month: 'short', year: 'numeric',
+                                        hour: '2-digit', minute: '2-digit', second: '2-digit'
+                                    });
+                                } catch { return ctx[0].label; }
+                            },
+                            label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(2) ?? '--'} ${unit}`
+                        }
+                    }
+                }
+            };
+        }
+
+        // ----------------------------------------------------------------
+        // Connection filter
+        // ----------------------------------------------------------------
+
+        function setConnection(id) {
+            currentTargetId = id || null;
+            _refreshing = false;
+            refreshData();
+        }
+
+        function _targetParam() {
+            return currentTargetId ? `&target_id=${currentTargetId}` : '';
+        }
+
+        // ----------------------------------------------------------------
+        // Data loading
+        // ----------------------------------------------------------------
+
+        function setTimeRange(range) {
+            currentRange = range;
+            document.querySelectorAll('.controls [data-range]').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.range === range);
+            });
+            _refreshing = false;  // user action always takes priority over ongoing auto-refresh
+            refreshData();
+        }
+
+        async function refreshData() {
+            if (_refreshing) return;
+            _refreshing = true;
+            const btn = document.getElementById('refresh-btn');
+            if (btn) { btn.disabled = true; btn.style.opacity = '0.45'; }
+            await Promise.all([fetchStats(), fetchChartData(), fetchPingStats()]);
+            if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+            document.getElementById('footer-updated').textContent =
+                `Updated ${new Date().toLocaleTimeString()}`;
+            document.getElementById('footer-divider').style.display = '';
+            _refreshing = false;
+        }
+
+        async function fetchStats() {
+            try {
+                const stats = await fetch(`/api/stats?range=${currentRange}${_targetParam()}`).then(r => r.json());
+                if (stats.error) { console.error('Stats error:', stats.error); return; }
+                document.getElementById('avg-download').textContent = stats.avg_download ?? '--';
+                document.getElementById('avg-upload').textContent   = stats.avg_upload   ?? '--';
+                document.getElementById('avg-ping').textContent     = stats.avg_ping     ?? '--';
+                document.getElementById('total-tests').textContent  = stats.total_tests  ?? '--';
+                document.getElementById('failed-tests').textContent =
+                    stats.failed_tests > 0 ? `(${stats.failed_tests} failed)` : '';
+                if (stats.last_test_time) _lastKnownTestTime = stats.last_test_time;
+                updateFooter(stats.interval, stats.last_test_time);
+            } catch (e) { console.error('Failed to fetch stats:', e); }
+        }
+
+        async function fetchChartData() {
+            try {
+                const data = await fetch(`/api/data?range=${currentRange}${_targetParam()}`).then(r => r.json());
+                if (data.error) { console.error('Data error:', data.error); return; }
+                updateCharts(data);
+            } catch (e) { console.error('Failed to fetch data:', e); }
+        }
+
+        async function fetchPingStats() {
+            try {
+                const data = await fetch(`/api/ping-stats?range=${currentRange}${_targetParam()}`).then(r => r.json());
+                if (data.error || !Array.isArray(data)) return;
+                renderPingCards(data);
+            } catch (e) { console.error('Failed to fetch ping stats:', e); }
+        }
+
+        // ----------------------------------------------------------------
+        // Ping status cards
+        // ----------------------------------------------------------------
+
+        function renderPingCards(targets) {
+            const section = document.getElementById('ping-section');
+            if (!targets.length) { section.innerHTML = ''; return; }
+
+            section.innerHTML = targets.map(t => {
+                const loss    = t.avg_loss ?? 100;
+                const ping    = t.last_ping;
+                const ok      = t.last_success === 1;
+                const status  = !ok || loss > 25 ? 'down'
+                              : loss > 5 || (ping !== null && ping > 200) ? 'warn'
+                              : 'ok';
+                const pingStr = ping != null ? ping.toFixed(1) + ' ms' : 'N/A';
+                const avgStr  = t.avg_ping != null ? t.avg_ping + ' ms' : 'N/A';
+                const lossStr = loss != null ? loss.toFixed(0) + '%' : 'N/A';
+                const lastStr = t.last_check
+                    ? (() => {
+                        const mins = Math.round((Date.now() - new Date(t.last_check + 'Z')) / 60000);
+                        return mins < 1 ? 'just now' : `${mins}min ago`;
+                      })()
+                    : 'never';
+
+                return `<div class="ping-card ${status}">
+                    <div class="pc-name">${escHtml(t.alias)}</div>
+                    <div class="pc-meta">${escHtml(t.interface)} → ${escHtml(t.ping_host)}</div>
+                    <div class="pc-vals">
+                        <div class="pc-val"><span class="v">${pingStr}</span><span class="u">current</span></div>
+                        <div class="pc-val"><span class="v">${avgStr}</span><span class="u">avg</span></div>
+                        <div class="pc-val"><span class="v">${lossStr}</span><span class="u">loss</span></div>
+                    </div>
+                    <div class="pc-last">Last check: ${lastStr}</div>
+                </div>`;
+            }).join('');
+        }
+
+        // Update charts in-place — avoids canvas teardown flicker
+        function updateCharts(data) {
+            const isEmpty = data.length === 0;
+            document.getElementById('download-empty').style.display = isEmpty ? 'flex' : 'none';
+            document.getElementById('upload-empty').style.display   = isEmpty ? 'flex' : 'none';
+            document.getElementById('ping-empty').style.display     = isEmpty ? 'flex' : 'none';
+
+            const labels    = data.map(d => new Date(d.time));
+            const downloads = data.map(d => d.download);
+            const uploads   = data.map(d => d.upload);
+            const pings     = data.map(d => d.ping);
+
+            // Red dots for failed tests so outages are visually distinct from speed dips
+            const dlColors = data.map(d => d.success === 'false' ? '#fc8181' : '#00d4ff');
+            const ulColors = data.map(d => d.success === 'false' ? '#fc8181' : '#7b2cbf');
+            const pgColors = data.map(d => d.success === 'false' ? '#fc8181' : '#48bb78');
+
+            if (downloadChart) {
+                downloadChart.data.labels = labels;
+                downloadChart.data.datasets[0].data = downloads;
+                downloadChart.data.datasets[0].pointBackgroundColor = dlColors;
+                downloadChart.update('none');
+            } else {
+                downloadChart = new Chart(document.getElementById('downloadChart'), {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Download', data: downloads,
+                            borderColor: '#00d4ff', backgroundColor: 'rgba(0, 212, 255, 0.08)',
+                            pointBackgroundColor: dlColors,
+                            fill: true, tension: 0.4, pointRadius: 3, pointHoverRadius: 6
+                        }]
+                    },
+                    options: makeChartOptions('Mbps')
+                });
+            }
+
+            if (uploadChart) {
+                uploadChart.data.labels = labels;
+                uploadChart.data.datasets[0].data = uploads;
+                uploadChart.data.datasets[0].pointBackgroundColor = ulColors;
+                uploadChart.update('none');
+            } else {
+                uploadChart = new Chart(document.getElementById('uploadChart'), {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Upload', data: uploads,
+                            borderColor: '#7b2cbf', backgroundColor: 'rgba(123, 44, 191, 0.08)',
+                            pointBackgroundColor: ulColors,
+                            fill: true, tension: 0.4, pointRadius: 3, pointHoverRadius: 6
+                        }]
+                    },
+                    options: makeChartOptions('Mbps')
+                });
+            }
+
+            if (pingChart) {
+                pingChart.data.labels = labels;
+                pingChart.data.datasets[0].data = pings;
+                pingChart.data.datasets[0].pointBackgroundColor = pgColors;
+                pingChart.update('none');
+            } else {
+                pingChart = new Chart(document.getElementById('pingChart'), {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Ping', data: pings,
+                            borderColor: '#48bb78', backgroundColor: 'rgba(72, 187, 120, 0.08)',
+                            pointBackgroundColor: pgColors,
+                            fill: true, tension: 0.4, pointRadius: 3, pointHoverRadius: 6
+                        }]
+                    },
+                    options: makeChartOptions('ms')
+                });
+            }
+        }
+
+        function updateFooter(intervalSeconds, lastTestTime) {
+            const secs  = parseInt(intervalSeconds) || 600;
+            const label = secs < 60   ? `${secs}s`
+                        : secs < 3600 ? `${secs / 60}min`
+                        : `${secs / 3600}h`;
+            let text = `Every ${label} · Ookla Speedtest`;
+            if (lastTestTime) {
+                const mins = Math.round((Date.now() - new Date(lastTestTime)) / 60000);
+                const ago  = mins < 1 ? 'just now' : `${mins}min ago`;
+                text = `Every ${label} · Last test: ${ago} · Ookla Speedtest`;
+            }
+            document.getElementById('footer-interval').textContent = text;
+        }
+
+        // Initial load + auto-refresh every 5 minutes
+        refreshData();
+        loadSettings();   // also checks setup_done and may show welcome overlay
+        setInterval(refreshData, 5 * 60 * 1000);
+
+        // Poll every 30 s for a new test result; refresh automatically when one appears
+        setInterval(async () => {
+            if (_refreshing) return;
+            try {
+                const stats = await fetch('/api/stats?range=24h').then(r => r.json());
+                if (stats.last_test_time && _lastKnownTestTime &&
+                    stats.last_test_time !== _lastKnownTestTime) {
+                    refreshData();
+                }
+            } catch { /* network blip — silently ignore */ }
+        }, 30_000);
+
+        // ----------------------------------------------------------------
+        // Settings modal
+        // ----------------------------------------------------------------
+
+        // ----------------------------------------------------------------
+        // Welcome / first-run overlay
+        // ----------------------------------------------------------------
+
+        function dismissWelcome(openSettingsAfter) {
+            document.getElementById('welcome-overlay').style.display = 'none';
+            if (openSettingsAfter) openSettings();
+        }
+
+        function openSettings() {
+            document.getElementById('settings-overlay').classList.add('open');
+            document.getElementById('settings-status').textContent = '';
+            loadTargets();
+        }
+
+        function closeSettings() {
+            document.getElementById('settings-overlay').classList.remove('open');
+            document.getElementById('tz-dropdown').classList.remove('open');
+            document.getElementById('tz-trigger').classList.remove('open');
+        }
+
+        function handleOverlayClick(e) {
+            if (e.target === e.currentTarget) closeSettings();
+        }
+
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape' && document.getElementById('settings-overlay').classList.contains('open')) {
+                closeSettings();
+            }
+        });
+
+        async function loadSettings() {
+            const [config, servers] = await Promise.all([
+                fetch('/api/config').then(r => r.json()).catch(() => ({})),
+                fetch('/api/servers').then(r => r.json()).catch(() => []),
+            ]);
+
+            _serversList = Array.isArray(servers) ? servers : [];
+
+            if (config.timezone) {
+                currentTimezone = config.timezone;
+                _pickedTz = config.timezone;
+                document.getElementById('tz-display').textContent = tzLabel(config.timezone);
+            }
+            if (config.interval)         document.getElementById('interval-select').value       = config.interval;
+            if (config.retention_days !== undefined)
+                                         document.getElementById('retention-select').value       = config.retention_days;
+            if (config.max_server_attempts)
+                                         document.getElementById('max-attempts-select').value   = config.max_server_attempts;
+            if (config.speedtest_timeout)document.getElementById('timeout-select').value        = config.speedtest_timeout;
+            updateFooter(config.interval);
+
+            let globalServerIds = [];
+            try { globalServerIds = JSON.parse(config.server_ids || '[]'); } catch(e) {}
+            renderServerCheckboxes('global-srv-list', globalServerIds.map(String));
+
+            // Show welcome popup on very first visit
+            if (config.setup_done !== '1') {
+                document.getElementById('welcome-overlay').style.display = 'flex';
+            }
+        }
+
+        function exportCsv() {
+            const range = document.getElementById('export-range-select').value;
+            window.location.href = `/api/export?range=${range}${_targetParam()}`;
+        }
+
+        async function saveSettings() {
+            const timezone             = _pickedTz;
+            const interval             = document.getElementById('interval-select').value;
+            const server_ids           = [...document.querySelectorAll('#global-srv-list .srv-pick:checked')].map(cb => cb.value);
+            const retention_days       = document.getElementById('retention-select').value;
+            const max_server_attempts  = document.getElementById('max-attempts-select').value;
+            const speedtest_timeout    = document.getElementById('timeout-select').value;
+            const statusEl             = document.getElementById('settings-status');
+            const btn            = document.querySelector('.btn-save');
+
+            btn.disabled = true;
+            statusEl.className   = 'settings-status';
+            statusEl.textContent = 'Saving…';
+
+            try {
+                const res  = await fetch('/api/config', {
+                    method:  'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body:    JSON.stringify({ timezone, interval, server_ids: JSON.stringify(server_ids), retention_days, max_server_attempts, speedtest_timeout }),
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    currentTimezone = timezone;  // apply immediately to tooltip display
+                    statusEl.textContent = 'Saved — takes effect on next measurement.';
+                    updateFooter(interval);
+                } else {
+                    statusEl.textContent = 'Error: ' + (data.error || 'unknown');
+                    statusEl.className   = 'settings-status error';
+                }
+            } catch {
+                statusEl.textContent = 'Network error.';
+                statusEl.className   = 'settings-status error';
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        // ----------------------------------------------------------------
+        // Custom timezone picker
+        // ----------------------------------------------------------------
+
+        const TZ_OPTIONS = [
+            { group: null, options: [{ value: 'UTC', label: 'UTC' }] },
+            { group: 'Europe', options: [
+                { value: 'Europe/Amsterdam',    label: 'Amsterdam (CET/CEST)' },
+                { value: 'Europe/Athens',       label: 'Athens (EET/EEST)' },
+                { value: 'Europe/Berlin',       label: 'Berlin (CET/CEST)' },
+                { value: 'Europe/Brussels',     label: 'Brussels (CET/CEST)' },
+                { value: 'Europe/Bucharest',    label: 'Bucharest (EET/EEST)' },
+                { value: 'Europe/Dublin',       label: 'Dublin (GMT/IST)' },
+                { value: 'Europe/Helsinki',     label: 'Helsinki (EET/EEST)' },
+                { value: 'Europe/Istanbul',     label: 'Istanbul (TRT)' },
+                { value: 'Europe/Lisbon',       label: 'Lisbon (WET/WEST)' },
+                { value: 'Europe/London',       label: 'London (GMT/BST)' },
+                { value: 'Europe/Madrid',       label: 'Madrid (CET/CEST)' },
+                { value: 'Europe/Moscow',       label: 'Moscow (MSK)' },
+                { value: 'Europe/Oslo',         label: 'Oslo (CET/CEST)' },
+                { value: 'Europe/Paris',        label: 'Paris (CET/CEST)' },
+                { value: 'Europe/Prague',       label: 'Prague (CET/CEST)' },
+                { value: 'Europe/Rome',         label: 'Rome (CET/CEST)' },
+                { value: 'Europe/Stockholm',    label: 'Stockholm (CET/CEST)' },
+                { value: 'Europe/Vienna',       label: 'Vienna (CET/CEST)' },
+                { value: 'Europe/Warsaw',       label: 'Warsaw (CET/CEST)' },
+                { value: 'Europe/Zurich',       label: 'Zurich (CET/CEST)' },
+            ]},
+            { group: 'Americas', options: [
+                { value: 'America/Anchorage',   label: 'Anchorage (AKST/AKDT)' },
+                { value: 'America/Chicago',     label: 'Chicago (CST/CDT)' },
+                { value: 'America/Denver',      label: 'Denver (MST/MDT)' },
+                { value: 'America/Los_Angeles', label: 'Los Angeles (PST/PDT)' },
+                { value: 'America/New_York',    label: 'New York (EST/EDT)' },
+                { value: 'America/Phoenix',     label: 'Phoenix (MST)' },
+                { value: 'America/Sao_Paulo',   label: 'São Paulo (BRT)' },
+                { value: 'America/Toronto',     label: 'Toronto (EST/EDT)' },
+                { value: 'America/Vancouver',   label: 'Vancouver (PST/PDT)' },
+            ]},
+            { group: 'Asia / Middle East', options: [
+                { value: 'Asia/Bangkok',        label: 'Bangkok (ICT)' },
+                { value: 'Asia/Dubai',          label: 'Dubai (GST)' },
+                { value: 'Asia/Hong_Kong',      label: 'Hong Kong (HKT)' },
+                { value: 'Asia/Kolkata',        label: 'India (IST)' },
+                { value: 'Asia/Seoul',          label: 'Seoul (KST)' },
+                { value: 'Asia/Shanghai',       label: 'Shanghai (CST)' },
+                { value: 'Asia/Singapore',      label: 'Singapore (SGT)' },
+                { value: 'Asia/Tokyo',          label: 'Tokyo (JST)' },
+            ]},
+            { group: 'Oceania', options: [
+                { value: 'Australia/Adelaide',  label: 'Adelaide (ACST/ACDT)' },
+                { value: 'Australia/Brisbane',  label: 'Brisbane (AEST)' },
+                { value: 'Australia/Melbourne', label: 'Melbourne (AEST/AEDT)' },
+                { value: 'Australia/Perth',     label: 'Perth (AWST)' },
+                { value: 'Australia/Sydney',    label: 'Sydney (AEST/AEDT)' },
+                { value: 'Pacific/Auckland',    label: 'Auckland (NZST/NZDT)' },
+            ]},
+            { group: 'Africa', options: [
+                { value: 'Africa/Cairo',        label: 'Cairo (EET)' },
+                { value: 'Africa/Johannesburg', label: 'Johannesburg (SAST)' },
+                { value: 'Africa/Lagos',        label: 'Lagos (WAT)' },
+            ]},
+        ];
+
+        let _pickedTz = 'Europe/Amsterdam';
+
+        function tzLabel(value) {
+            for (const g of TZ_OPTIONS)
+                for (const o of g.options)
+                    if (o.value === value) return o.label;
+            return value;
+        }
+
+        function buildTzList(filter) {
+            const fl = (filter || '').toLowerCase();
+            let html = '';
+            for (const group of TZ_OPTIONS) {
+                const opts = group.options.filter(o =>
+                    !fl || o.label.toLowerCase().includes(fl) || (group.group || '').toLowerCase().includes(fl)
+                );
+                if (!opts.length) continue;
+                if (group.group) html += `<div class="tz-group-lbl">${group.group}</div>`;
+                for (const o of opts)
+                    html += `<div class="tz-opt${o.value === _pickedTz ? ' selected' : ''}" onclick="selectTz('${o.value}')">${o.label}</div>`;
+            }
+            document.getElementById('tz-list').innerHTML = html ||
+                '<div style="padding:8px 10px;font-size:12px;color:#4a5568">No matches</div>';
+        }
+
+        function toggleTzDropdown() {
+            const dd   = document.getElementById('tz-dropdown');
+            const trig = document.getElementById('tz-trigger');
+            const open = !dd.classList.contains('open');
+            dd.classList.toggle('open', open);
+            trig.classList.toggle('open', open);
+            if (open) {
+                const s = document.getElementById('tz-search');
+                s.value = '';
+                buildTzList('');
+                s.focus();
+            }
+        }
+
+        function selectTz(value) {
+            _pickedTz = value;
+            document.getElementById('tz-display').textContent = tzLabel(value);
+            document.getElementById('tz-dropdown').classList.remove('open');
+            document.getElementById('tz-trigger').classList.remove('open');
+        }
+
+        document.addEventListener('click', function(e) {
+            const p = document.getElementById('tz-picker');
+            if (p && !p.contains(e.target)) {
+                document.getElementById('tz-dropdown').classList.remove('open');
+                document.getElementById('tz-trigger').classList.remove('open');
+            }
+        });
+
+        // ----------------------------------------------------------------
+        // Connection (target) management
+        // ----------------------------------------------------------------
+
+        function escHtml(str) {
+            return String(str ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function renderServerCheckboxes(containerId, selectedIds) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            const sel = selectedIds.map(String);
+            if (!_serversList.length) {
+                container.innerHTML = '<div class="target-srv-hint">No servers cached yet — close and re-open Settings to refresh.</div>';
+                return;
+            }
+            container.innerHTML = _serversList.map(s =>
+                `<label class="target-check">` +
+                `<input type="checkbox" class="srv-pick" value="${escHtml(String(s.id))}"` +
+                (sel.includes(String(s.id)) ? ' checked' : '') + `> ` +
+                `${escHtml(s.name)} — ${escHtml(s.location)}, ${escHtml(s.country)}` +
+                `</label>`
+            ).join('');
+        }
+
+        async function loadTargets() {
+            let targets = [];
+            try {
+                targets = await fetch('/api/targets').then(r => r.json());
+            } catch { return; }
+
+            // Render target rows in settings modal
+            const list = document.getElementById('targets-list');
+            list.innerHTML = targets.map(t => `
+                <div class="target-row" id="target-row-${t.id}">
+                    <div class="target-fields">
+                        <input class="target-input" id="t-alias-${t.id}"  value="${escHtml(t.alias)}"     placeholder="Alias">
+                        <input class="target-input" id="t-iface-${t.id}"  value="${escHtml(t.interface)}" placeholder="Interface">
+                        <input class="target-input" id="t-phost-${t.id}"  value="${escHtml(t.ping_host)}" placeholder="Ping host">
+                    </div>
+                    <div class="target-controls">
+                        <label class="target-check">
+                            <input type="checkbox" id="t-spd-${t.id}" ${t.run_speedtest ? 'checked' : ''}
+                                onchange="document.getElementById('t-srv-section-${t.id}').style.display=this.checked?'':'none'">
+                            Speedtest
+                        </label>
+                        <label class="target-check">
+                            <input type="checkbox" id="t-en-${t.id}" ${t.enabled ? 'checked' : ''}> Enabled
+                        </label>
+                        <div class="target-btns">
+                            <button class="btn-sm btn-sm-save" onclick="saveTarget(${t.id})">Save</button>
+                            <button class="btn-sm btn-sm-del"  onclick="deleteTarget(${t.id})">✕</button>
+                        </div>
+                    </div>
+                    <div id="t-srv-section-${t.id}" style="${t.run_speedtest ? '' : 'display:none'}">
+                        <div class="target-servers-hdr">Speedtest Servers <em>(leave all unchecked to auto-select nearest)</em></div>
+                        <div class="target-servers-list" id="t-srv-${t.id}"></div>
+                    </div>
+                    <div class="settings-status" id="t-status-${t.id}" style="margin-top:5px"></div>
+                </div>
+            `).join('');
+
+            // Populate server checkboxes after DOM is ready
+            targets.forEach(t => {
+                const selected = Array.isArray(t.speedtest_servers) ? t.speedtest_servers.map(String) : [];
+                renderServerCheckboxes(`t-srv-${t.id}`, selected);
+            });
+
+            // Update connection selector in topbar
+            const sel = document.getElementById('connection-select');
+            const prev = sel.value;
+            // Keep "All connections" option, replace the rest
+            while (sel.options.length > 1) sel.remove(1);
+            targets.filter(t => t.enabled).forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t.id;
+                opt.textContent = t.alias;
+                sel.appendChild(opt);
+            });
+            sel.value = prev; // restore selection if still valid
+        }
+
+        async function saveTarget(id) {
+            const alias     = document.getElementById(`t-alias-${id}`).value.trim();
+            const iface     = document.getElementById(`t-iface-${id}`).value.trim();
+            const ping_host = document.getElementById(`t-phost-${id}`).value.trim();
+            const run_speedtest = document.getElementById(`t-spd-${id}`).checked ? 1 : 0;
+            const enabled       = document.getElementById(`t-en-${id}`).checked  ? 1 : 0;
+            const statusEl      = document.getElementById(`t-status-${id}`);
+            const speedtest_servers = [...document.querySelectorAll(`#t-srv-${id} .srv-pick:checked`)].map(cb => cb.value);
+
+            if (!alias || !iface || !ping_host) {
+                statusEl.className = 'settings-status error';
+                statusEl.textContent = 'All fields are required.';
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/targets/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ alias, interface: iface, ping_host, run_speedtest, enabled, speedtest_servers }),
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    statusEl.className = 'settings-status';
+                    statusEl.textContent = 'Saved.';
+                    setTimeout(() => { statusEl.textContent = ''; }, 2000);
+                    loadTargets();  // refresh selector
+                } else {
+                    statusEl.className = 'settings-status error';
+                    statusEl.textContent = data.error || 'Error saving.';
+                }
+            } catch {
+                statusEl.className = 'settings-status error';
+                statusEl.textContent = 'Network error.';
+            }
+        }
+
+        async function deleteTarget(id) {
+            if (!confirm('Delete this connection? Its historical data will remain in the database.')) return;
+            try {
+                await fetch(`/api/targets/${id}`, { method: 'DELETE' });
+            } catch { /* ignore */ }
+            // Remove from selector if currently selected
+            if (currentTargetId == id) {
+                currentTargetId = null;
+                document.getElementById('connection-select').value = '';
+                refreshData();
+            }
+            loadTargets();
+        }
+
+        function toggleAddForm() {
+            const form = document.getElementById('target-add-form');
+            form.classList.toggle('open');
+            if (form.classList.contains('open')) {
+                document.getElementById('new-alias').value = '';
+                document.getElementById('new-interface').value = '';
+                document.getElementById('new-ping-host').value = '';
+                document.getElementById('new-run-speedtest').checked = true;
+                document.getElementById('new-enabled').checked = true;
+                document.getElementById('add-target-status').textContent = '';
+                document.getElementById('new-srv-section').style.display = '';
+                renderServerCheckboxes('new-srv-list', []);
+            }
+        }
+
+        async function addTarget() {
+            const alias     = document.getElementById('new-alias').value.trim();
+            const iface     = document.getElementById('new-interface').value.trim();
+            const ping_host = document.getElementById('new-ping-host').value.trim();
+            const run_speedtest = document.getElementById('new-run-speedtest').checked ? 1 : 0;
+            const enabled       = document.getElementById('new-enabled').checked ? 1 : 0;
+            const statusEl      = document.getElementById('add-target-status');
+            const speedtest_servers = [...document.querySelectorAll('#new-srv-list .srv-pick:checked')].map(cb => cb.value);
+
+            if (!alias || !iface || !ping_host) {
+                statusEl.className = 'settings-status error';
+                statusEl.textContent = 'Alias, interface, and ping host are required.';
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/targets', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ alias, interface: iface, ping_host, run_speedtest, enabled, speedtest_servers }),
+                });
+                const data = await res.json();
+                if (data.id) {
+                    toggleAddForm();
+                    loadTargets();
+                } else {
+                    statusEl.className = 'settings-status error';
+                    statusEl.textContent = data.error || 'Error creating connection.';
+                }
+            } catch {
+                statusEl.className = 'settings-status error';
+                statusEl.textContent = 'Network error.';
+            }
+        }
+
+        // ----------------------------------------------------------------
+        // Tab switcher
+        // ----------------------------------------------------------------
+
+        let _iperf3PollInterval = null;
+        let _iperf3Running      = false;
+
+        function switchTab(name) {
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.id === 'tab-btn-' + name);
+            });
+            document.querySelectorAll('.tab-panel').forEach(panel => {
+                panel.classList.toggle('active', panel.id === name + '-tab');
+            });
+            if (name === 'iperf3') {
+                loadIperf3Tab();
+                _iperf3PollInterval = setInterval(loadIperf3Tab, 10_000);
+            } else {
+                if (_iperf3PollInterval) { clearInterval(_iperf3PollInterval); _iperf3PollInterval = null; }
+            }
+        }
+
+        // ----------------------------------------------------------------
+        // iperf3 tab
+        // ----------------------------------------------------------------
+
+        async function loadIperf3Tab() {
+            try {
+                const [status, results] = await Promise.all([
+                    fetch('/api/iperf3/status').then(r => r.json()),
+                    fetch('/api/iperf3/results').then(r => r.json()),
+                ]);
+                _iperf3Running = status.running;
+                const badge     = document.getElementById('iperf3-badge');
+                const btn       = document.getElementById('iperf3-toggle-btn');
+                const portInput = document.getElementById('iperf3-port');
+                if (status.running) {
+                    badge.textContent  = 'Running';
+                    badge.className    = 'badge running';
+                    btn.textContent    = 'Stop server';
+                    btn.className      = 'btn-iperf3-toggle stop';
+                    portInput.disabled = true;
+                } else {
+                    badge.textContent  = 'Stopped';
+                    badge.className    = 'badge stopped';
+                    btn.textContent    = 'Start server';
+                    btn.className      = 'btn-iperf3-toggle';
+                    portInput.disabled = false;
+                }
+                if (status.port) {
+                    portInput.value = status.port;
+                    updateIperf3Cmds(status.port);
+                }
+                if (Array.isArray(results)) renderIperf3Results(results);
+            } catch (e) { console.error('iperf3 tab load failed:', e); }
+        }
+
+        function updateIperf3Cmds(port) {
+            document.querySelectorAll('.iperf3-dyn-cmd').forEach(el => {
+                const tpl = el.getAttribute('data-tpl');
+                if (tpl) el.textContent = tpl.replace('{port}', port);
+            });
+        }
+
+        function copyIperf3Ref(btn) {
+            const code = btn.parentElement.querySelector('code');
+            if (code) navigator.clipboard.writeText(code.textContent).catch(() => {});
+        }
+
+        async function toggleIperf3() {
+            const btn     = document.getElementById('iperf3-toggle-btn');
+            const port    = parseInt(document.getElementById('iperf3-port').value) || 5201;
+            const enabled = !_iperf3Running;
+            btn.disabled  = true;
+            try {
+                await fetch('/api/iperf3/toggle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled, port }),
+                });
+                await loadIperf3Tab();
+            } catch (e) { console.error('iperf3 toggle failed:', e); }
+            finally { btn.disabled = false; }
+        }
+
+        function renderIperf3Results(rows) {
+            const tbody = document.getElementById('iperf3-tbody');
+            if (!rows.length) {
+                tbody.innerHTML = '<tr><td colspan="8" class="iperf3-empty">No sessions yet. Start the server and run iperf3 from a client.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = rows.map(r => `
+                <tr>
+                    <td>${escHtml(r.timestamp || '')}</td>
+                    <td>${escHtml(r.client_ip || '')}</td>
+                    <td>${escHtml(r.protocol || '')}</td>
+                    <td>${r.duration_s != null ? r.duration_s.toFixed(1) + 's' : '—'}</td>
+                    <td>${r.sent_mbps != null ? r.sent_mbps.toFixed(1) : '—'}</td>
+                    <td>${r.recv_mbps != null ? r.recv_mbps.toFixed(1) : '—'}</td>
+                    <td>${r.protocol === 'TCP' ? (r.retransmits ?? '—') : '—'}</td>
+                    <td>${r.protocol === 'UDP' && r.jitter_ms != null ? r.jitter_ms.toFixed(2) : '—'}</td>
+                </tr>
+            `).join('');
+        }
+
+        // copyIperf3Ref handles all command copy buttons (see above)
+
+        async function clearIperf3Results() {
+            if (!confirm('Clear all iperf3 session records?')) return;
+            try {
+                await fetch('/api/iperf3/results', { method: 'DELETE' });
+                renderIperf3Results([]);
+            } catch (e) { console.error('clear failed:', e); }
+        }
+    </script>
+</body>
+</html>

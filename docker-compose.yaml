@@ -1,0 +1,23 @@
+services:
+
+  isp_monitor:
+    build: .
+    container_name: isp_monitor
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+      - "5201:5201"
+    environment:
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./:/app:ro
+      - db_data:/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+
+volumes:
+  db_data: {}
